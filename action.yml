@@ -34,6 +34,13 @@ inputs:
   doppler-api-domain:
     default: "api.doppler.com"
     required: false
+  output-doppler-token:
+    description: >-
+      Whether to export the DOPPLER_TOKEN as a masked output.
+      Defaults to "false".
+    default: "false"
+    required: false
+
 runs:
   using: 'node20'
   main: 'index.js'

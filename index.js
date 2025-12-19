@@ -56,3 +56,10 @@ for (const [key, secret] of Object.entries(secrets)) {
     core.exportVariable(key, value);
   }
 }
+
+const OUTPUT_DOPPLER_TOKEN = core.getInput("output-doppler-token")
+if (OUTPUT_DOPPLER_TOKEN === "true") {
+  core.setOutput("DOPPLER_TOKEN", DOPPLER_TOKEN)
+  // The DOPPLER_TOKEN variable is already masked above once it has been imported
+  // We do not need to mask it again here
+}
