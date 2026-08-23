@@ -129,4 +129,9 @@ and any secrets assigned the `unmasked` [secret visibility](https://docs.doppler
 
 # Development and Testing
 
-Export the `NODE_ENV` and `DOPPLER_TOKEN` environment variables, then run `npm test`.
+Run `npm run test:unit` for the unit tests. They use the Node built-in test
+runner, need no credentials, and run against the committed `node_modules`
+without an install.
+
+`npm test` is a live end-to-end run against the Doppler API. Export the
+`NODE_ENV` and `DOPPLER_TOKEN` environment variables first.
