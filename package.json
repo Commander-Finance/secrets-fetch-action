@@ -14,7 +14,8 @@
     },
     "type": "module",
     "scripts": {
-        "test": "node index.js"
+        "test": "node index.js",
+        "test:unit": "node --test"
     },
     "keywords": [],
     "homepage": "https://github.com/dopplerhq/secrets-fetch-action/#readme",

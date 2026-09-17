@@ -3,6 +3,17 @@ name: Test
 on: [push, pull_request]
 
 jobs:
+  unit-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      # No `npm install`: the action runs straight from the checkout, so this
+      # job must exercise the committed node_modules tree. Installing first
+      # would repair a missing vendored dependency and hide the breakage.
+      - run: npm run test:unit
   service-token-test:
     runs-on: ubuntu-latest
     steps:
