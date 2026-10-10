@@ -1,5 +1,5 @@
 import core from "@actions/core";
-import { fetch, oidcAuth } from "./doppler.js";
+import { fetch, getOidcToken, oidcAuth } from "./doppler.js";
 
 // For local testing
 if (process.env.NODE_ENV === "development" && process.env.DOPPLER_TOKEN) {
@@ -16,7 +16,7 @@ let DOPPLER_TOKEN = "";
 
 if (AUTH_METHOD === "oidc") {
   const DOPPLER_IDENTITY_ID = core.getInput("doppler-identity-id", { required: true });
-  const oidcToken = await core.getIDToken();
+  const oidcToken = await getOidcToken();
   core.setSecret(oidcToken);
   DOPPLER_TOKEN = await oidcAuth(DOPPLER_IDENTITY_ID, oidcToken, API_DOMAIN);
 } else if (AUTH_METHOD === "token") {
