@@ -225,7 +225,7 @@ async function _oidcAuth(identityId, oidcToken, apiDomain) {
             "user-agent": userAgent,
             "accepts": "application/json",
             "Content-Type": "application/json",
-            "Content-Length": body.length,
+            "Content-Length": Buffer.byteLength(body),
           },
           method: 'POST'
         },
