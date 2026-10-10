@@ -5,6 +5,7 @@ import https from "node:https";
 import os from "node:os";
 import path from "node:path";
 import { after, afterEach, before, beforeEach, describe, mock, test } from "node:test";
+import { inspect } from "node:util";
 import core from "@actions/core";
 import { fetch, getOidcToken, oidcAuth, setRetryBaseDelay, withRetry } from "./doppler.js";
 
@@ -157,6 +158,7 @@ const TRANSIENT_FAILURES = [
   ["a 429", json(429, { messages: ["Rate limit exceeded"], success: false })],
   ["a connection reset", reset],
   ["a reset after part of the body", resetMidBody],
+  ["a 200 whose body is not JSON", html(200, "<html>Service Unavailable</html>")],
 ];
 
 const PERMANENT_FAILURES = [
@@ -197,6 +199,44 @@ for (const { name, call, success, expected } of DOPPLER_CALLS) {
     }
   });
 }
+
+describe("a 200 whose body is not JSON", () => {
+  // A 200 from Doppler carries secrets or a token, so its body must not reach the logs.
+  const BODY_MARKER = "LEAKME";
+  const ATTEMPTS_BEFORE_GIVING_UP = 5;
+  const CONTENT_TYPES = [
+    ["a proxy's error page", { "content-type": "text/html" }, /text\/html/],
+    ["a response without one", {}, /no content type/],
+  ];
+
+  for (const { name, call } of DOPPLER_CALLS) {
+    for (const [label, headers, expectedContentType] of CONTENT_TYPES) {
+      test(`${name}() names the status and content type of ${label}, not the body`, { timeout: CASE_TIMEOUT_MS }, async () => {
+        const notJson = (_request, response) => {
+          response.writeHead(200, headers);
+          response.end(`${BODY_MARKER}-secret-value is not json`);
+        };
+        const server = await startServer(notJson, notJson);
+        try {
+          const error = await settled(call(server.domain)).then(
+            () => assert.fail(`${name} resolved`),
+            (rejection) => rejection,
+          );
+          assert.equal(server.requests(), ATTEMPTS_BEFORE_GIVING_UP);
+          assert.match(error.message, /\b200\b/);
+          assert.match(error.message, /not JSON/);
+          assert.match(error.message, expectedContentType);
+          assert.ok(!inspect(error, { depth: null }).includes(BODY_MARKER), "the error quotes the body");
+          for (const { arguments: [warning] } of warnings.mock.calls) {
+            assert.ok(!warning.includes(BODY_MARKER), "a retry warning quotes the body");
+          }
+        } finally {
+          await server.close();
+        }
+      });
+    }
+  }
+});
 
 describe("getOidcToken()", () => {
   test("retries a reset from GitHub's token endpoint", { timeout: CASE_TIMEOUT_MS }, async () => {

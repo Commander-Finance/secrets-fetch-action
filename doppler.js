@@ -36,8 +36,9 @@ class DopplerApiError extends Error {
 }
 
 /**
- * A request that failed before Doppler sent a complete response: a refused or
- * reset connection, a DNS failure, or a body cut off mid-transfer
+ * A request that got no usable response from Doppler: a refused or reset
+ * connection, a DNS failure, a body cut off mid-transfer, or a 200 whose body
+ * is not JSON, such as an error page from a proxy in front of the API
  */
 class DopplerTransportError extends Error {}
 
@@ -47,6 +48,22 @@ class DopplerTransportError extends Error {}
  */
 function transportError(error) {
   return new DopplerTransportError(`Doppler API Error: ${error}`, { cause: error });
+}
+
+/**
+ * @param {import("http").IncomingMessage} res - A 200 response
+ * @param {string} payload - Its body
+ * @returns {unknown} The parsed body, of whatever JSON type it holds
+ */
+function parseSuccessBody(res, payload) {
+  try {
+    return JSON.parse(payload);
+  } catch {
+    // The parser's message quotes the start of the body, so it is not passed on.
+    throw new DopplerTransportError(
+      `Doppler API Error: ${res.statusCode} ${res.statusMessage} with a body that is not JSON (${res.headers["content-type"] ?? "no content type"})`,
+    );
+  }
 }
 
 // Doppler answers 400 with this when it cannot fetch GitHub's signing keys to
@@ -158,7 +175,11 @@ async function _fetch(dopplerToken, dopplerProject, dopplerConfig, apiDomain) {
           });
           res.on("end", () => {
             if (res.statusCode === 200) {
-              resolve(JSON.parse(payload).secrets);
+              try {
+                resolve(parseSuccessBody(res, payload).secrets);
+              } catch (error) {
+                reject(error);
+              }
             } else {
               try {
                 const error = JSON.parse(payload).messages.join(" ");
@@ -214,7 +235,11 @@ async function _oidcAuth(identityId, oidcToken, apiDomain) {
           });
           res.on("end", () => {
             if (res.statusCode === 200) {
-              resolve(JSON.parse(payload).token);
+              try {
+                resolve(parseSuccessBody(res, payload).token);
+              } catch (error) {
+                reject(error);
+              }
             } else {
               try {
                 const error = JSON.parse(payload).messages.join(" ");
