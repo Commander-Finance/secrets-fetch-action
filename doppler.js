@@ -169,6 +169,8 @@ async function _fetch(dopplerToken, dopplerProject, dopplerConfig, apiDomain) {
         },
         (res) => {
           let payload = "";
+          // Decodes across chunk boundaries, so a character split between chunks survives.
+          res.setEncoding("utf8");
           res.on("data", (data) => (payload += data));
           res.on("error", (error) => {
             reject(transportError(error));
@@ -229,6 +231,8 @@ async function _oidcAuth(identityId, oidcToken, apiDomain) {
         },
         (res) => {
           let payload = "";
+          // Decodes across chunk boundaries, so a character split between chunks survives.
+          res.setEncoding("utf8");
           res.on("data", (data) => (payload += data));
           res.on("error", (error) => {
             reject(transportError(error));
