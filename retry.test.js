@@ -239,7 +239,7 @@ describe("a 200 whose body is not JSON", () => {
 });
 
 describe("non-ASCII text", () => {
-  // "é" is two bytes in UTF-8, so a split can leave half of it in each chunk.
+  // "é" is two bytes in UTF-8 but one UTF-16 code unit in a JavaScript string.
   const NON_ASCII_CHARACTER = "é";
   const NON_ASCII_SECRETS = { API_KEY: { computed: `caf${NON_ASCII_CHARACTER}-secret`, computedVisibility: "masked" } };
   const NON_ASCII_TOKEN = `caf${NON_ASCII_CHARACTER}-token`;
@@ -275,6 +275,33 @@ describe("non-ASCII text", () => {
       }
     });
   }
+
+  test("oidcAuth() sends the whole request body for a non-ASCII identity", { timeout: CASE_TIMEOUT_MS }, async () => {
+    const identity = `identit${NON_ASCII_CHARACTER}`;
+    const received = [];
+    // Doppler reads exactly Content-Length bytes, so a short header truncates the JSON.
+    const exchange = (request, response) => {
+      let body = "";
+      request.setEncoding("utf8");
+      request.on("data", (chunk) => (body += chunk));
+      request.on("end", () => {
+        try {
+          received.push(JSON.parse(body).identity);
+        } catch {
+          json(400, { messages: ["Invalid JSON body"], success: false })(request, response);
+          return;
+        }
+        json(200, { token: EXCHANGED_TOKEN })(request, response);
+      });
+    };
+    const server = await startServer(exchange, exchange);
+    try {
+      assert.equal(await settled(oidcAuth(identity, GITHUB_ID_TOKEN, server.domain)), EXCHANGED_TOKEN);
+      assert.deepEqual(received, [identity]);
+    } finally {
+      await server.close();
+    }
+  });
 });
 
 describe("getOidcToken()", () => {
