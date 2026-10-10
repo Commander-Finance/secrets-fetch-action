@@ -238,6 +238,45 @@ describe("a 200 whose body is not JSON", () => {
   }
 });
 
+describe("non-ASCII text", () => {
+  // "é" is two bytes in UTF-8, so a split can leave half of it in each chunk.
+  const NON_ASCII_CHARACTER = "é";
+  const NON_ASCII_SECRETS = { API_KEY: { computed: `caf${NON_ASCII_CHARACTER}-secret`, computedVisibility: "masked" } };
+  const NON_ASCII_TOKEN = `caf${NON_ASCII_CHARACTER}-token`;
+  const NON_ASCII_RESPONSES = {
+    fetch: { body: { secrets: NON_ASCII_SECRETS }, expected: NON_ASCII_SECRETS },
+    oidcAuth: { body: { token: NON_ASCII_TOKEN }, expected: NON_ASCII_TOKEN },
+  };
+  // Long enough that the client reads the two halves separately.
+  const PAUSE_BETWEEN_CHUNKS_MS = 20;
+
+  /** Answers 200 with `body`, sent as two chunks that divide NON_ASCII_CHARACTER. */
+  function splitInsideCharacter(body) {
+    return (_request, response) => {
+      const bytes = Buffer.from(JSON.stringify(body));
+      const splitAt = bytes.indexOf(Buffer.from(NON_ASCII_CHARACTER)) + 1;
+      response.writeHead(200, { "content-type": "application/json" });
+      response.write(bytes.subarray(0, splitAt), () => {
+        setTimeout(() => response.end(bytes.subarray(splitAt)), PAUSE_BETWEEN_CHUNKS_MS);
+      });
+    };
+  }
+
+  for (const { name, call } of DOPPLER_CALLS) {
+    const { body, expected } = NON_ASCII_RESPONSES[name];
+    test(`${name}() keeps a character split between response chunks`, { timeout: CASE_TIMEOUT_MS }, async () => {
+      const respond = splitInsideCharacter(body);
+      const server = await startServer(respond, respond);
+      try {
+        assert.deepEqual(await settled(call(server.domain)), expected);
+        assert.equal(server.requests(), 1);
+      } finally {
+        await server.close();
+      }
+    });
+  }
+});
+
 describe("getOidcToken()", () => {
   test("retries a reset from GitHub's token endpoint", { timeout: CASE_TIMEOUT_MS }, async () => {
     const server = await startServer(reset, json(200, { value: GITHUB_ID_TOKEN }));
